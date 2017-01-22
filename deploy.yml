@@ -1,0 +1,31 @@
+- name: deploy to lambda
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+
+  - include_vars:
+      file: key.yml
+      name: slack
+
+  - name: fill in key
+    template: src=max_template.py dest=./max.py
+
+  - name: create zip
+    shell: zip -r max.zip max.py pytz/
+#    archive is new in 2.3 :)
+#    archive: path=['max.py', 'pytz/'] format=zip dest=max.zip
+
+  - name: deploy to aws
+    lambda:
+      name: max
+      state: present
+      zip_file: max.zip
+      runtime: 'python2.7'
+#      the role needs to be present for this to work
+      role: 'lambda_max'
+      handler: 'max.lambda_handler'
+      memory_size: 256
+      timeout: 300
+
+

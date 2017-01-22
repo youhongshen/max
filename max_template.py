@@ -93,14 +93,32 @@ def clean_older_files():
 
 
 def lambda_handler(event, context):
-    print('Received event: ' + json.dumps(event, indent=2))
-    link = event['url']
-    email = event['email']
+    expected_token = '{{ slack.key }}'
+    print('received event: ' + json.dumps(event, indent=2))
 
-    clean_older_files()
-    (file_name, download_url) = parse_url_and_validate(link)
+    token = event['token']
+    link = event['text']
+    user = event['user_name']
+    response_url = event['response_url']
 
-    download_from_url_and_upload_to_s3(download_url, bucket_name, file_name)
+    if token != expected_token:
+        print("Request token (%s) does not match expected", token)
+        return Exception('Invalid request token')
+
+    # requests.post(response_url, json={'text': 'your message is received'})
+
+    return 'hi %s, we received your dropbox URL %s' \
+           ', but we are still trying to figure out what to do with it, so be patient' \
+           % (user, link)
+
+    # print('Received event: ' + json.dumps(event, indent=2))
+    # link = event['url']
+    # email = event['email']
+
+    # clean_older_files()
+    # (file_name, download_url) = parse_url_and_validate(link)
+    #
+    # download_from_url_and_upload_to_s3(download_url, bucket_name, file_name)
 
 
 if __name__ == '__main__':
@@ -108,8 +126,8 @@ if __name__ == '__main__':
     # link = 'https://www.dropbox.com/sh/gb4ys9jbhs9qdxj/AAD2VIvc4Qy20oxNbTAOHuBXa?dl=1'
 
     event = {
-        "url": 'https://www.dropbox.com/sh/gb4ys9jbhs9qdxj/AAD2VIvc4Qy20oxNbTAOHuBXa?dl=1',
-        "url2": "https://www.dropbox.com/s/kwp2h88va2ndw41/RPM%20chapter1.doc?dl=0",
+        "url2": 'https://www.dropbox.com/sh/gb4ys9jbhs9qdxj/AAD2VIvc4Qy20oxNbTAOHuBXa?dl=1',
+        "url": "https://www.dropbox.com/s/kwp2h88va2ndw41/RPM%20chapter1.doc?dl=0",
         "email": "you_hong@yahoo.com"
     }
 

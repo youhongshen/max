@@ -1,0 +1,34 @@
+1) vary the chunk size in urlopen.read() to see how it impacts download time
+
+file size   chunk size (x * 1024)   time            memory (ps -auxww, vsz col)
+5.5 mb      16                      4.2 sec
+5.5 mb      64                      2.5 sec
+5.5 mb      128                     2.5 sec
+818 mb      128                     3 min 43 sec
+818 mb      1024                    3 min 44 sec
+818 mb      64                      3 min 43 sec    85 mb
+
+In the 800mb test, it was maxing out at my ISP's download speed (32 mbps or 4 mBps)
+for a 800 mb file / 4 mBps = 200 sec or 3 min 20 sec
+
+2) determine the max amount of time it takes to download to decide the max amount
+of time to allow the lambda to run.  Need to test it on lamdba to see the AWS max
+download speed
+
+3) determine memory size for lambda
+
+4) upload speed (from a local file to s3)
+
+file size   method          time (total run time, include download)
+818 mb      s3.Object.put   22 min 4 sec, maxed out my ISP upload bandwidth
+
+Also test s3.Object.upload_file
+http://boto3.readthedocs.io/en/latest/reference/services/s3.html#S3.Object.upload_file
+
+5) test the 800 mb file by directly reading from the URL and upload to a s3 bucket
+without using a temporary file
+
+config memory (mb)  max execution time      status  completion time     memory used (mb)
+128                 5 min                   failed  90 sec              128
+1024                5 min                   succ    68 sec              90
+256                 5 min                   succ    63                  97
