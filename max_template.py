@@ -32,10 +32,10 @@ chunk_size = 64 * 1024
 def parse_url_and_validate(url):
     parse_result = urlparse.urlparse(url)
     if not parse_result.scheme:
-        raise ValueError('invalid URL: ' + url)
+        raise ValueError('Invalid URL: ' + url)
     # only support stuff from dropbox
     if 'dropbox.com' not in parse_result.netloc:
-        raise ValueError('only support downloads from dropbox')
+        raise ValueError('Curently we only support downloads from Dropbox')
 
     # update the query from dl=0 to dl=1 to force download
     url_parts = list(parse_result)
@@ -77,8 +77,11 @@ def download_from_url_and_upload_to_s3(url, bucket_name, s3_file):
     print('Created a s3 bucket ' + bucket_name)
 
     file = bucket.Object(s3_file)
-    file.upload_fileobj(urlopen(url), Config=TransferConfig())
-    print('Created file ' + s3_file + ' in the bucket')
+    try:
+        file.upload_fileobj(urlopen(url), Config=TransferConfig())
+        print('Created file ' + s3_file + ' in the bucket')
+    except:
+        raise
 
     client = boto3.client('s3')
     public_url = client.generate_presigned_url(
@@ -107,11 +110,23 @@ def clean_older_files():
         bkt.delete()
 
 
-def respond(err, res=None):
+def respond(err, res=None, msg_type='ephemeral'):
+
+    if msg_type != 'ephemeral' and msg_type != 'in_channel':
+        msg_type = 'ephemeral'
+    if err:
+        msg = 'Aww snap, looks like something went wrong... '
+        if err.message:
+            msg += err.message
+        else:
+            msg += str(err)
+    else:
+        msg = json.dumps(res)
+
     return {
         'statusCode': '400' if err else '200',
-        'response_type': 'in_channel',
-        'text': err.message if err else json.dumps(res),
+        'response_type': 'ephemeral' if err else msg_type,
+        'text': msg,
         'headers': {
             'Content-Type': 'application/json',
         },
@@ -131,8 +146,10 @@ def lambda_handler(event, context):
         print("Request token (%s) does not match expected", token)
         requests.post(response_url, json=respond(Exception('Invalid request token')))
     else:
-        r = respond(None, 'We received your request.'
-                          'However, depending on the size of your file, this could take awhile.')
+        r = respond(None,
+                    res='We received your request. However, depending on the size of '
+                        'your file, this could take up to a minute.',
+                    msg_type='ephemeral')
         requests.post(response_url, json=r)
 
     # print('Received event: ' + json.dumps(event, indent=2))
@@ -148,8 +165,12 @@ def lambda_handler(event, context):
         print(traceback.format_exc())
         requests.post(response_url, json=respond(sys.exc_value))
     else:
-        r = respond(None, 'hi %s, the content of your Dropbox shared link can be '
-                                 'downloaded from %s. It expires in 5 minutes.' % (user, public_url))
+        r = respond(None,
+                    res='hi %s, the content of your Dropbox shared link can be '
+                        'downloaded from %s. But hurry up, it expires in 5 minutes.'
+                        % (user, public_url),
+                    msg_type='in_channel'
+                    )
         requests.post(response_url, json=r)
 
 
@@ -159,7 +180,7 @@ if __name__ == '__main__':
 
     event = {
         # "text": "https://www.dropbox.com/s/kwp2h88va2ndw41/RPM%20chapter1.doc?dl=0",
-        "text": "stuff",
+        "text": "https://dropbox.com/stuff",
         "token": "{{ slack.key }}",
         "user_name": "joan",
         "response_url": "https://hooks.slack.com/commands/T0CPLA68H/130870288469/SsaGz6qWsKdBiUBYFEq34VNz"
@@ -168,4 +189,3 @@ if __name__ == '__main__':
     context = ''
     response = lambda_handler(event, context)
     print(response)
-
