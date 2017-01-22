@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import datetime
 import json
+import sys
+import traceback
 import urllib2
 import urlparse
 from urllib import urlencode
@@ -11,6 +13,7 @@ import boto3
 from boto3.s3.transfer import TransferConfig
 
 import pytz
+import requests
 
 bucket_prefix = 'proj_max_'
 _now = datetime.datetime.utcnow()
@@ -77,6 +80,18 @@ def download_from_url_and_upload_to_s3(url, bucket_name, s3_file):
     file.upload_fileobj(urlopen(url), Config=TransferConfig())
     print('Created file ' + s3_file + ' in the bucket')
 
+    client = boto3.client('s3')
+    public_url = client.generate_presigned_url(
+        ClientMethod='get_object',
+        Params={
+            'Bucket': bucket_name,
+            'Key': s3_file,
+        },
+        ExpiresIn=300
+    )
+    print("public URL = " + public_url)
+    return public_url
+
 
 def clean_older_files():
     s3 = boto3.resource('s3')
@@ -92,6 +107,17 @@ def clean_older_files():
         bkt.delete()
 
 
+def respond(err, res=None):
+    return {
+        'statusCode': '400' if err else '200',
+        'response_type': 'in_channel',
+        'text': err.message if err else json.dumps(res),
+        'headers': {
+            'Content-Type': 'application/json',
+        },
+    }
+
+
 def lambda_handler(event, context):
     expected_token = '{{ slack.key }}'
     print('received event: ' + json.dumps(event, indent=2))
@@ -103,22 +129,28 @@ def lambda_handler(event, context):
 
     if token != expected_token:
         print("Request token (%s) does not match expected", token)
-        return Exception('Invalid request token')
-
-    # requests.post(response_url, json={'text': 'your message is received'})
-
-    return 'hi %s, we received your dropbox URL %s' \
-           ', but we are still trying to figure out what to do with it, so be patient' \
-           % (user, link)
+        requests.post(response_url, json=respond(Exception('Invalid request token')))
+    else:
+        r = respond(None, 'We received your request.'
+                          'However, depending on the size of your file, this could take awhile.')
+        requests.post(response_url, json=r)
 
     # print('Received event: ' + json.dumps(event, indent=2))
     # link = event['url']
     # email = event['email']
 
-    # clean_older_files()
-    # (file_name, download_url) = parse_url_and_validate(link)
-    #
-    # download_from_url_and_upload_to_s3(download_url, bucket_name, file_name)
+    try:
+        clean_older_files()
+        (file_name, download_url) = parse_url_and_validate(link)
+
+        public_url = download_from_url_and_upload_to_s3(download_url, bucket_name, file_name)
+    except:
+        print(traceback.format_exc())
+        requests.post(response_url, json=respond(sys.exc_value))
+    else:
+        r = respond(None, 'hi %s, the content of your Dropbox shared link can be '
+                                 'downloaded from %s. It expires in 5 minutes.' % (user, public_url))
+        requests.post(response_url, json=r)
 
 
 if __name__ == '__main__':
@@ -126,10 +158,14 @@ if __name__ == '__main__':
     # link = 'https://www.dropbox.com/sh/gb4ys9jbhs9qdxj/AAD2VIvc4Qy20oxNbTAOHuBXa?dl=1'
 
     event = {
-        "url2": 'https://www.dropbox.com/sh/gb4ys9jbhs9qdxj/AAD2VIvc4Qy20oxNbTAOHuBXa?dl=1',
-        "url": "https://www.dropbox.com/s/kwp2h88va2ndw41/RPM%20chapter1.doc?dl=0",
-        "email": "you_hong@yahoo.com"
+        # "text": "https://www.dropbox.com/s/kwp2h88va2ndw41/RPM%20chapter1.doc?dl=0",
+        "text": "stuff",
+        "token": "{{ slack.key }}",
+        "user_name": "joan",
+        "response_url": "https://hooks.slack.com/commands/T0CPLA68H/130870288469/SsaGz6qWsKdBiUBYFEq34VNz"
     }
 
     context = ''
-    lambda_handler(event, context)
+    response = lambda_handler(event, context)
+    print(response)
+

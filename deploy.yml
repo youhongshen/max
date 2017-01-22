@@ -12,7 +12,7 @@
     template: src=max_template.py dest=./max.py
 
   - name: create zip
-    shell: zip -r max.zip max.py pytz/
+    shell: zip -r max.zip max.py pytz/ requests/
 #    archive is new in 2.3 :)
 #    archive: path=['max.py', 'pytz/'] format=zip dest=max.zip
 
