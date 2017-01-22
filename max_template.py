@@ -111,7 +111,6 @@ def clean_older_files():
 
 
 def respond(err, res=None, msg_type='ephemeral'):
-
     if msg_type != 'ephemeral' and msg_type != 'in_channel':
         msg_type = 'ephemeral'
     if err:
@@ -124,7 +123,7 @@ def respond(err, res=None, msg_type='ephemeral'):
         msg = json.dumps(res)
 
     return {
-        'statusCode': '400' if err else '200',
+        'statusCode': 400 if err else 200,
         'response_type': 'ephemeral' if err else msg_type,
         'text': msg,
         'headers': {
@@ -134,9 +133,9 @@ def respond(err, res=None, msg_type='ephemeral'):
 
 
 def lambda_handler(event, context):
-    expected_token = '{{ slack.key }}'
     print('received event: ' + json.dumps(event, indent=2))
 
+    expected_token = '{{ slack.key }}'
     token = event['token']
     link = event['text']
     user = event['user_name']
@@ -144,17 +143,15 @@ def lambda_handler(event, context):
 
     if token != expected_token:
         print("Request token (%s) does not match expected", token)
-        requests.post(response_url, json=respond(Exception('Invalid request token')))
+        r = respond(Exception('Invalid request token'))
+        # TODO - fix the http return code, it's always 200
+        return r
     else:
         r = respond(None,
                     res='We received your request. However, depending on the size of '
                         'your file, this could take up to a minute.',
                     msg_type='ephemeral')
         requests.post(response_url, json=r)
-
-    # print('Received event: ' + json.dumps(event, indent=2))
-    # link = event['url']
-    # email = event['email']
 
     try:
         clean_older_files()
@@ -163,7 +160,9 @@ def lambda_handler(event, context):
         public_url = download_from_url_and_upload_to_s3(download_url, bucket_name, file_name)
     except:
         print(traceback.format_exc())
-        requests.post(response_url, json=respond(sys.exc_value))
+        r = respond(sys.exc_value)
+        requests.post(response_url, json=r)
+        # return r
     else:
         r = respond(None,
                     res='hi %s, the content of your Dropbox shared link can be '
@@ -172,6 +171,7 @@ def lambda_handler(event, context):
                     msg_type='in_channel'
                     )
         requests.post(response_url, json=r)
+        # return r
 
 
 if __name__ == '__main__':
@@ -183,7 +183,7 @@ if __name__ == '__main__':
         "text": "https://dropbox.com/stuff",
         "token": "{{ slack.key }}",
         "user_name": "joan",
-        "response_url": "https://hooks.slack.com/commands/T0CPLA68H/130870288469/SsaGz6qWsKdBiUBYFEq34VNz"
+        "response_url": "https://hooks.slack.com/commands/T0CPLA68H/130976742101/Ly5ov0fvf60kBGL4aI9HlCeB"
     }
 
     context = ''

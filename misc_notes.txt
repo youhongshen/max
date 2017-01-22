@@ -1,3 +1,14 @@
+
+
+#############
+# Notes
+The template to convert from application/www-form-urlencoded (for requests from slack)
+is downloaded from here: https://gist.github.com/ryanray/668022ad2432e38493df
+
+
+#############
+# test scenarios
+
 1) vary the chunk size in urlopen.read() to see how it impacts download time
 
 file size   chunk size (x * 1024)   time            memory (ps -auxww, vsz col)
